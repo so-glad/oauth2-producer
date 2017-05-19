@@ -6,34 +6,35 @@
  */
 
 
+import _ from 'lodash';
+import url from 'url';
 
-var _ = require('lodash');
-var url = require('url');
-var Request = require('../request');
-var Response = require('../response');
+import util from '../utils';
 
-var AuthenticateHandler = require('../handlers/authenticate-handler');
+import Parameter from "../models/Parameter";
+import Result from "../models/Result";
 
-var AccessDeniedError = require('../errors/access-denied-error');
-var InvalidArgumentError = require('../errors/invalid-argument-error');
-var InvalidClientError = require('../errors/invalid-client-error');
-var InvalidRequestError = require('../errors/invalid-request-error');
-var InvalidScopeError = require('../errors/invalid-scope-error');
-var UnsupportedResponseTypeError = require('../errors/unsupported-response-type-error');
-var OAuthError = require('../errors/oauth-error');
-var ServerError = require('../errors/server-error');
-var UnauthorizedClientError = require('../errors/unauthorized-client-error');
-var is = require('../is');
-var tokenUtil = require('../utils/token-util');
-
+import AuthenticateHandler from '../handlers/AuthenticateHandler';
+import CodeResponseType from '../CodeResponseType';
+import {
+    AccessDeniedError,
+    InvalidArgumentError,
+    InvalidClientError,
+    InvalidRequestError,
+    InvalidScopeError,
+    UnsupportedResponseTypeError,
+    OAuthError,
+    ServerError,
+    UnauthorizedClientError
+} from '../models/OAuthError';
 
 /**
  * Response types.
  */
 
 const responseTypes = {
-    code: require('../responseTypes/code-response-type'),
-    //token: require('../responseTypes/token-response-type')
+    code: CodeResponseType,
+    //token:
 };
 
 /**
@@ -82,61 +83,40 @@ export default class AuthorizeHandler {
      * Authorize Handler.
      */
 
-    handle = function (request, response) {
-        if (!(request instanceof Request)) {
+    handle = async (request, response) => {
+        if (!(request instanceof Parameter)) {
             throw new InvalidArgumentError('Invalid argument: `request` must be an instance of Request');
         }
 
-        if (!(response instanceof Response)) {
+        if (!(response instanceof Result)) {
             throw new InvalidArgumentError('Invalid argument: `response` must be an instance of Response');
         }
 
-        if ('false' === request.query.allowed) {
+        if ('false' === request.allowed) {
             throw new AccessDeniedError('Access denied: user denied access to application');
         }
-
-        var fns = [
-            this.generateAuthorizationCode(),
-            this.getAuthorizationCodeLifetime(),
-            this.getClient(request),
-            this.getUser(request, response)
-        ];
-
-        return Promise.all(fns)
-            .bind(this)
-            .spread(function (authorizationCode, expiresAt, client, user) {
-                var uri = this.getRedirectUri(request, client);
-                var scope;
-                var state;
-                var ResponseType;
-
-                return Promise.bind(this)
-                    .then(function () {
-                        scope = this.getScope(request);
-                        state = this.getState(request);
-                        ResponseType = this.getResponseType(request);
-
-                        return this.saveAuthorizationCode(authorizationCode, expiresAt, scope, client, uri, user);
-                    })
-                    .then(function (code) {
-                        var responseType = new ResponseType(code.authorizationCode);
-                        var redirectUri = this.buildSuccessRedirectUri(uri, responseType);
-
-                        this.updateResponse(response, redirectUri, state);
-
-                        return code;
-                    })
-                    .catch(function (e) {
-                        if (!(e instanceof OAuthError)) {
-                            e = new ServerError(e);
-                        }
-                        var redirectUri = this.buildErrorRedirectUri(uri, e);
-
-                        this.updateResponse(response, redirectUri, state);
-
-                        throw e;
-                    });
-            });
+        try {
+            const authorizationCode = await this.generateAuthorizationCode();
+            const expiresAt = this.getAuthorizationCodeLifetime();
+            const client = await this.getClient(request);
+            const user = await this.getUser(request, response);
+            const uri = this.getRedirectUri(request, client);
+            const scope = this.getScope(request);
+            const state = this.getState(request);
+            const ResponseType = this.getResponseType(request);
+            const code = await this.saveAuthorizationCode(authorizationCode, expiresAt, scope, client, uri, user);
+            const responseType = new ResponseType(code.authorizationCode);
+            const redirectUri = this.buildSuccessRedirectUri(uri, responseType);
+            this.updateResponse(response, redirectUri, state);
+            return code;
+        } catch(e){
+            if (!(e instanceof OAuthError)) {
+                e = new ServerError(e);
+            }
+            const redirectUri = this.buildErrorRedirectUri(uri, e);
+            this.updateResponse(response, redirectUri, state);
+            throw e;
+        }
     };
 
     /**
@@ -147,7 +127,7 @@ export default class AuthorizeHandler {
         if (this.service.generateAuthorizationCode) {
             return await this.service.generateAuthorizationCode();
         }
-        return tokenUtil.generateRandomToken();
+        return util.generateRandomToken();
     };
 
     /**
@@ -165,20 +145,20 @@ export default class AuthorizeHandler {
      * Get the client from the model.
      */
 
-    getClient = async (request) => {
-        const clientId = request.body.client_id || request.query.client_id;
+    getClient = async (params) => {
+        const clientId = params.client_id;
 
         if (!clientId) {
             throw new InvalidRequestError('Missing parameter: `client_id`');
         }
 
-        if (!is.vschar(clientId)) {
+        if (!util.vschar(clientId)) {
             throw new InvalidRequestError('Invalid parameter: `client_id`');
         }
 
-        const redirectUri = request.body.redirect_uri || request.query.redirect_uri;
+        const redirectUri = params.redirect_uri;
 
-        if (redirectUri && !is.uri(redirectUri)) {
+        if (redirectUri && !util.uri(redirectUri)) {
             throw new InvalidRequestError('Invalid request: `redirect_uri` is not a valid URI');
         }
 
@@ -210,10 +190,10 @@ export default class AuthorizeHandler {
      * Get scope from the request.
      */
 
-    getScope = (request) => {
-        const scope = request.body.scope || request.query.scope;
+    getScope = (params) => {
+        const scope = params.scope;
 
-        if (!is.nqschar(scope)) {
+        if (!util.nqschar(scope)) {
             throw new InvalidScopeError('Invalid parameter: `scope`');
         }
 
@@ -224,14 +204,14 @@ export default class AuthorizeHandler {
      * Get state from the request.
      */
 
-    getState = (request) => {
-        const state = request.body.state || request.query.state;
+    getState = (params) => {
+        const state = params.state;
 
         if (!this.allowEmptyState && !state) {
             throw new InvalidRequestError('Missing parameter: `state`');
         }
 
-        if (!is.vschar(state)) {
+        if (!util.vschar(state)) {
             throw new InvalidRequestError('Invalid parameter: `state`');
         }
 
@@ -260,7 +240,7 @@ export default class AuthorizeHandler {
      * Get redirect URI.
      */
 
-    getRedirectUri = (request, client) => (request.body.redirect_uri || request.query.redirect_uri || client.redirectUris[0]);
+    getRedirectUri = (params, client) => (params.redirect_uri || client.redirectUris[0]);
 
     /**
      * Save authorization code.
@@ -280,8 +260,8 @@ export default class AuthorizeHandler {
      * Get response type.
      */
 
-    getResponseType = (request) => {
-        const responseType = request.body.response_type || request.query.response_type;
+    getResponseType = (params) => {
+        const responseType = params.response_type;
 
         if (!responseType) {
             throw new InvalidRequestError('Missing parameter: `response_type`');

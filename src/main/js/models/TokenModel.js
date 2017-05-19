@@ -4,7 +4,7 @@
  * Module dependencies.
  */
 
-import {InvalidArgumentError} from '../OAuthErrors';
+import {InvalidArgumentError} from './OAuthErrors';
 
 /**
  * Constructor.

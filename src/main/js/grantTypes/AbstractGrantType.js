@@ -1,13 +1,13 @@
 'use strict';
 
 /**
- * Module dependencies.
+ * @author palmtale
+ * @since 2017/5/19.
  */
 
 
-import is from '../is';
-import tokenUtil from '../utils/token-util';
-import {InvalidArgumentError, InvalidScopeError} from '../OAuthErrors';
+import util from '../utils';
+import {InvalidArgumentError, InvalidScopeError} from "../models/OAuthError";
 
 export default class AbstractGrantType {
 
@@ -43,10 +43,10 @@ export default class AbstractGrantType {
     generateAccessToken = async (client, user, scope) => {
         if (this.model.generateAccessToken) {
             const accessToken = await this.service.generateAccessToken(client, user, scope);
-            return accessToken || tokenUtil.generateRandomToken();
+            return accessToken || util.generateRandomToken();
         }
 
-        return tokenUtil.generateRandomToken();
+        return util.generateRandomToken();
     };
 
     /**
@@ -56,10 +56,10 @@ export default class AbstractGrantType {
     generateRefreshToken = async (client, user, scope) => {
         if (this.service.generateRefreshToken) {
             const refreshToken = this.service.generateRefreshToken(client, user, scope);
-            return refreshToken || tokenUtil.generateRandomToken();
+            return refreshToken || util.generateRandomToken();
         }
 
-        return tokenUtil.generateRandomToken();
+        return util.generateRandomToken();
     };
 
     /**
@@ -87,7 +87,7 @@ export default class AbstractGrantType {
      */
 
     getScope = (request) => {
-        if (!is.nqschar(request.body.scope)) {
+        if (!util.nqschar(request.body.scope)) {
             throw new InvalidArgumentError('Invalid parameter: `scope`');
         }
         return request.body.scope;

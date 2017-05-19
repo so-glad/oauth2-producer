@@ -6,18 +6,18 @@
  */
 
 
-import Request from '../request';
-import Response from '../response';
+import Parameter from "../models/Parameter";
+import Result from "../models/Result";
 
 import {
+    InsufficientScopeError,
     InvalidArgumentError,
     InvalidRequestError,
-    InsufficientScopeError,
     InvalidTokenError,
     OAuthError,
     ServerError,
     UnauthorizedRequestError
-} from '../OAuthErrors';
+} from "../models/OAuthError";
 
 /**
  * Constructor.
@@ -35,7 +35,7 @@ export default class AuthenticateHandler {
 
     scope = null;
 
-    constructor(options){
+    constructor(options) {
         options = options || {};
 
         if (!options.service) {
@@ -185,7 +185,7 @@ export default class AuthenticateHandler {
         return scope;
     };
 
-    updateResponse = function(response, accessToken) {
+    updateResponse = function (response, accessToken) {
         if (this.scope && this.addAcceptedScopesHeader) {
             response.set('X-Accepted-OAuth-Scopes', this.scope);
         }

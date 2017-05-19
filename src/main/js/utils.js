@@ -5,7 +5,7 @@
  * @since 2017/5/19.
  */
 
-import crypto from 'crypto';
+import crypto from "crypto";
 
 const rules = {
     NCHAR: /^[\u002D|\u002E|\u005F|\w]+$/,

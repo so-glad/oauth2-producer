@@ -1,111 +1,81 @@
 'use strict';
 
 /**
- * Module dependencies.
+ * @author palmtale
+ * @since 2017/5/19.
  */
 
-var AbstractGrantType = require('./AbstractGrantType');
-var InvalidArgumentError = require('../errors/invalid-argument-error');
-var InvalidGrantError = require('../errors/invalid-grant-error');
-var Promise = require('bluebird');
-var promisify = require('promisify-any').use(Promise);
-var util = require('util');
 
-/**
- * Constructor.
- */
+import {InvalidArgumentError, InvalidGrantError} from "../models/OAuthErrors";
 
-function ClientCredentialsGrantType(options) {
-  options = options || {};
+export default class ClientCredentialsGrantType extends AbstractGrantType {
 
-  if (!options.model) {
-    throw new InvalidArgumentError('Missing parameter: `model`');
-  }
 
-  if (!options.model.getUserFromClient) {
-    throw new InvalidArgumentError('Invalid argument: model does not implement `getUserFromClient()`');
-  }
+    constructor(options) {
+        super(options);
+        options = options || {};
 
-  if (!options.model.saveToken) {
-    throw new InvalidArgumentError('Invalid argument: model does not implement `saveToken()`');
-  }
+        if (!options.service) {
+            throw new InvalidArgumentError('Missing parameter: `model`');
+        }
 
-  AbstractGrantType.call(this, options);
+        if (!options.service.getUserFromClient) {
+            throw new InvalidArgumentError('Invalid argument: model does not implement `getUserFromClient()`');
+        }
+
+        if (!options.service.saveToken) {
+            throw new InvalidArgumentError('Invalid argument: model does not implement `saveToken()`');
+        }
+
+    }
+
+    /**
+     * Handle client credentials grant.
+     *
+     * @see https://tools.ietf.org/html/rfc6749#section-4.4.2
+     */
+
+    handle = async (request, client) => {
+        if (!request) {
+            throw new InvalidArgumentError('Missing parameter: `request`');
+        }
+
+        if (!client) {
+            throw new InvalidArgumentError('Missing parameter: `client`');
+        }
+
+        const scope = this.getScope(request);
+        const user = await this.getUserFromClient(client);
+        return await this.saveToken(user, client, scope);
+    };
+
+    /**
+     * Retrieve the user using client credentials.
+     */
+
+    getUserFromClient = async (client) => {
+        const user = await this.service.getUserFromClient(client);
+        if (!user) {
+            throw new InvalidGrantError('Invalid grant: user credentials are invalid');
+        }
+
+        return user;
+    };
+
+    /**
+     * Save token.
+     */
+
+    saveToken = async (user, client, scope) => {
+        const scopes = await this.validateScope(user, client, scope);
+        const accessToken = await this.generateAccessToken(client, user, scope);
+        const accessTokenExpiresAt = this.getAccessTokenExpiresAt(client, user, scope);
+        const token = {
+            accessToken: accessToken,
+            accessTokenExpiresAt: accessTokenExpiresAt,
+            scope: scopes
+        };
+        return await this.service.saveToken(token, client, user);
+    };
+
 }
-
-/**
- * Inherit prototype.
- */
-
-util.inherits(ClientCredentialsGrantType, AbstractGrantType);
-
-/**
- * Handle client credentials grant.
- *
- * @see https://tools.ietf.org/html/rfc6749#section-4.4.2
- */
-
-ClientCredentialsGrantType.prototype.handle = function(request, client) {
-  if (!request) {
-    throw new InvalidArgumentError('Missing parameter: `request`');
-  }
-
-  if (!client) {
-    throw new InvalidArgumentError('Missing parameter: `client`');
-  }
-
-  var scope = this.getScope(request);
-
-  return Promise.bind(this)
-    .then(function() {
-      return this.getUserFromClient(client);
-    })
-    .then(function(user) {
-      return this.saveToken(user, client, scope);
-    });
-};
-
-/**
- * Retrieve the user using client credentials.
- */
-
-ClientCredentialsGrantType.prototype.getUserFromClient = function(client) {
-  return promisify(this.model.getUserFromClient, 1)(client)
-    .then(function(user) {
-      if (!user) {
-        throw new InvalidGrantError('Invalid grant: user credentials are invalid');
-      }
-
-      return user;
-    });
-};
-
-/**
- * Save token.
- */
-
-ClientCredentialsGrantType.prototype.saveToken = function(user, client, scope) {
-  var fns = [
-    this.validateScope(user, client, scope),
-    this.generateAccessToken(client, user, scope),
-    this.getAccessTokenExpiresAt(client, user, scope)
-  ];
-
-  return Promise.all(fns)
-    .bind(this)
-    .spread(function(scope, accessToken, accessTokenExpiresAt) {
-      var token = {
-        accessToken: accessToken,
-        accessTokenExpiresAt: accessTokenExpiresAt,
-        scope: scope
-      };
-
-      return promisify(this.model.saveToken, 3)(token, client, user);
-    });
-};
-
-/**
- * Export constructor.
- */
-
-module.exports = ClientCredentialsGrantType;

@@ -6,10 +6,11 @@
  */
 
 
-import AbstracatGrantType from './AbstractGrantType';
+import AbstractGrantType from './AbstractGrantType';
+import {InvalidArgumentError, InvalidGrantError, InvalidRequestError} from "../models/OAuthErrors";
 
+export default class ImplicitGrantType extends AbstractGrantType {
 
-export default class ImplicitGrantType extends AbstracatGrantType {
     constructor(options) {
         super(options);
         if (!request) {
@@ -30,9 +31,9 @@ export default class ImplicitGrantType extends AbstracatGrantType {
             throw new InvalidArgumentError('Missing parameter: `client`');
         }
 
-        var scope = this.getScope(request);
+        const scope = this.getScope(request);
         const user = await this.getUser(request);
-        this.saveToken(user, client, scope);
+        return await this.saveToken(user, client, scope);
     };
 
     getUser = async (request) => {
@@ -43,7 +44,6 @@ export default class ImplicitGrantType extends AbstracatGrantType {
         }
         const code = request.query.code;
         const state = request.query.state;
-        let result = null;
         try {
             const access = await this.service.exchangeAccessTokenByCode(type, code, state);
             if (access.error) {
@@ -58,10 +58,9 @@ export default class ImplicitGrantType extends AbstracatGrantType {
                 }
             }
         } catch (e) {
-            this.logger.error(e);
             throw e;
         }
-    }
+    };
 
     saveToken = async (user, client, scope) => {
         const scope = await this.validateScope(user, client, scope);

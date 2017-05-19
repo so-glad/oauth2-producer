@@ -1,25 +1,18 @@
 'use strict';
 
 /**
- * Module dependencies.
+ * @author palmtale
+ * @since 2017/5/19.
  */
 
 
-import is from '../is';
+import util from '../utils';
 import AbstractGrantType from './AbstractGrantType';
 
-import {
-    InvalidArgumentError, 
-    InvalidGrantError, 
-    InvalidRequestError, 
-    ServerError
-} from '../OAuthErrors';
+import {InvalidArgumentError, InvalidGrantError, InvalidRequestError, ServerError} from '../models/OAuthError';
 
-/**
- * Constructor.
- */
 export default class AuthorizationCodeGrantType extends AbstractGrantType {
-    
+
     constructor(options) {
         super(options);
         options = options || {};
@@ -47,7 +40,7 @@ export default class AuthorizationCodeGrantType extends AbstractGrantType {
      * @see https://tools.ietf.org/html/rfc6749#section-4.1.3
      */
 
-    handle = function (request, client) {
+    handle = async (request, client) => {
         if (!request) {
             throw new InvalidArgumentError('Missing parameter: `request`');
         }
@@ -55,20 +48,10 @@ export default class AuthorizationCodeGrantType extends AbstractGrantType {
         if (!client) {
             throw new InvalidArgumentError('Missing parameter: `client`');
         }
-
-        return Promise.bind(this)
-            .then(function () {
-                return this.getAuthorizationCode(request, client);
-            })
-            .tap(function (code) {
-                return this.validateRedirectUri(request, code);
-            })
-            .tap(function (code) {
-                return this.revokeAuthorizationCode(code);
-            })
-            .then(function (code) {
-                return this.saveToken(code.user, client, code.authorizationCode, code.scope);
-            });
+        const code = await this.getAuthorizationCode(request, client);
+        this.validateRedirectUri(request, code);
+        await this.revokeAuthorizationCode(code);
+        return this.saveToken(code.user, client, code.authorizationCode, code.scope);
     };
 
     /**
@@ -80,7 +63,7 @@ export default class AuthorizationCodeGrantType extends AbstractGrantType {
             throw new InvalidRequestError('Missing parameter: `code`');
         }
 
-        if (!is.vschar(request.body.code)) {
+        if (!util.vschar(request.body.code)) {
             throw new InvalidRequestError('Invalid parameter: `code`');
         }
         const code = await this.service.getAuthorizationCode(request.body.code);
@@ -133,7 +116,7 @@ export default class AuthorizationCodeGrantType extends AbstractGrantType {
 
         const redirectUri = request.body.redirect_uri || request.query.redirect_uri;
 
-        if (!is.uri(redirectUri)) {
+        if (!util.uri(redirectUri)) {
             throw new InvalidRequestError('Invalid request: `redirect_uri` is not a valid URI');
         }
 

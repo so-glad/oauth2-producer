@@ -6,6 +6,12 @@
  */
 
 
+import AuthorizeHandler from './handlers/AuthorizeHandler';
+import AuthenticateHandler from './handlers/AuthenticateHandler';
+import TokenHandler from './handlers/TokenHandler';
+
+import {InvalidArgumentError} from './models/OAuthError';
+
 export default class OAuth2Server {
 
     options = null;

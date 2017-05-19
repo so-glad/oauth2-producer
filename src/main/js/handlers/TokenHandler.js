@@ -6,43 +6,57 @@
  */
 
 
+import _ from "lodash";
 
-var _ = require('lodash');
-import auth from 'basic-auth';
-var is = require('../is');
+import auth from "basic-auth";
+import util from "../utils";
 
-var Request = require('../request');
-var Response = require('../response');
+import Parameter from "../models/Parameter";
+import Result from "../models/Result";
 
-var BearerTokenType = require('../tokenTypes/bearer-token-type');
-var TokenModel = require('../models/TokenModel');
+import BearerTokenType from "../BearerTokenType";
+import TokenModel from "../models/TokenModel";
 
+import AuthorizationCodeGrantType from "../grantTypes/AuthorizationCodeGrantType";
+import PasswordGrantType from "../grantTypes/PasswordGrantType";
+import ClientCredentialsGrantType from "../grantTypes/ClientCredentialsGrantType";
+import ProxyGrantType from "../grantTypes/ProxyGrantType";
+import RefreshTokenGrantType from "../grantTypes/RefreshTokenGrantType";
 
-var InvalidArgumentError = require('../errors/invalid-argument-error');
-var InvalidClientError = require('../errors/invalid-client-error');
-var InvalidRequestError = require('../errors/invalid-request-error');
-var OAuthError = require('../errors/oauth-error');
-var ServerError = require('../errors/server-error');
-var UnauthorizedClientError = require('../errors/unauthorized-client-error');
-var UnsupportedGrantTypeError = require('../errors/unsupported-grant-type-error');
-
+import {
+    InvalidArgumentError,
+    InvalidClientError,
+    InvalidRequestError,
+    OAuthError,
+    ServerError,
+    UnauthorizedClientError,
+    UnsupportedGrantTypeError
+} from "../models/OAuthError";
 
 /**
  * Grant types.
  */
 
 const grantTypes = {
-    authorization_code: require('../grantTypes/AuthorizationCodeGrant-type'),
-    client_credentials: require('../grantTypes/ClientCredentialsGrantType'),
-    password: require('../grantTypes/PasswordGrantType'),
-    refresh_token: require('../grantTypes/RefreshTokenGrantType'),
-    proxy: require('../grantTypes/ProxyGrantType')
+    authorization_code: AuthorizationCodeGrantType,
+    client_credentials: ClientCredentialsGrantType,
+    password: PasswordGrantType,
+    refresh_token: RefreshTokenGrantType,
+    proxy: ProxyGrantType
 };
 
 /**
  * Constructor.
  */
 export default class TokenHandler {
+
+    accessTokenLifetime = null;
+    grantTypes = null;
+    service = null;
+    refreshTokenLifetime = null;
+    allowExtendedTokenAttributes = null;
+    requireClientAuthentication = null;
+    alwaysIssueNewRefreshToken = null;
 
     constructor(options) {
         options = options || {};
@@ -77,11 +91,11 @@ export default class TokenHandler {
      */
 
     handle = async (request, response) => {
-        if (!(request instanceof Request)) {
+        if (!(request instanceof Parameter)) {
             throw new InvalidArgumentError('Invalid argument: `request` must be an instance of Request');
         }
 
-        if (!(response instanceof Response)) {
+        if (!(response instanceof Result)) {
             throw new InvalidArgumentError('Invalid argument: `response` must be an instance of Response');
         }
 
@@ -92,13 +106,13 @@ export default class TokenHandler {
         if (!request.is('application/x-www-form-urlencoded')) {
             throw new InvalidRequestError('Invalid request: content must be application/x-www-form-urlencoded');
         }
-        try{
+        try {
             const client = await this.getClient(request, response);
             const data = await this.handleGrantType(request, client);
             const model = new TokenModel(data, {allowExtendedTokenAttributes: this.allowExtendedTokenAttributes});
             const tokenType = this.getTokenType(model);
             this.updateSuccessResponse(response, tokenType);
-        } catch(e) {
+        } catch (e) {
             const error = (e instanceof OAuthError) ? e : new ServerError(e);
             this.updateErrorResponse(response, error);
             throw error;
@@ -121,11 +135,11 @@ export default class TokenHandler {
             throw new InvalidRequestError('Missing parameter: `client_secret`');
         }
 
-        if (!is.vschar(credentials.clientId)) {
+        if (!util.vschar(credentials.clientId)) {
             throw new InvalidRequestError('Invalid parameter: `client_id`');
         }
 
-        if (!is.vschar(credentials.clientSecret)) {
+        if (!util.vschar(credentials.clientSecret)) {
             throw new InvalidRequestError('Invalid parameter: `client_secret`');
         }
         const client = await this.service.getClient(credentials.clientId, credentials.clientSecret);
@@ -190,7 +204,7 @@ export default class TokenHandler {
             throw new InvalidRequestError('Missing parameter: `grant_type`');
         }
 
-        if (!is.nchar(grantType) && !is.uri(grantType)) {
+        if (!util.nchar(grantType) && !is.uri(grantType)) {
             throw new InvalidRequestError('Invalid parameter: `grant_type`');
         }
 

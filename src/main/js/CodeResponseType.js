@@ -5,7 +5,7 @@
  */
 
 import url from 'url';
-import {InvalidArgumentError} from './OAuthErrors';
+import {InvalidArgumentError} from './models/OAuthError';
 
 /**
  * Constructor.
