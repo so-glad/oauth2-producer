@@ -26,8 +26,8 @@ export default class AbstractGrantType {
             throw new InvalidArgumentError('Missing parameter: `accessTokenLifetime`');
         }
 
-        if (!options.model) {
-            throw new InvalidArgumentError('Missing parameter: `model`');
+        if (!options.service) {
+            throw new InvalidArgumentError('Missing parameter: `service`');
         }
 
         this.accessTokenLifetime = options.accessTokenLifetime;
@@ -41,7 +41,7 @@ export default class AbstractGrantType {
      */
 
     generateAccessToken = async (client, user, scope) => {
-        if (this.model.generateAccessToken) {
+        if (this.service.generateAccessToken) {
             const accessToken = await this.service.generateAccessToken(client, user, scope);
             return accessToken || util.generateRandomToken();
         }
@@ -86,11 +86,12 @@ export default class AbstractGrantType {
      * Get scope from the request body.
      */
 
-    getScope = (request) => {
-        if (!util.nqschar(request.body.scope)) {
+    getScope = (params) => {
+        const scope = params.get('scope');
+        if (!util.nqschar(scope)) {
             throw new InvalidArgumentError('Invalid parameter: `scope`');
         }
-        return request.body.scope;
+        return scope;
     };
 
     /**

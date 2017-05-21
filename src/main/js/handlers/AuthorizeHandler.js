@@ -6,7 +6,6 @@
  */
 
 
-import _ from 'lodash';
 import url from 'url';
 
 import util from '../utils';
@@ -15,7 +14,7 @@ import Parameter from "../models/Parameter";
 import Result from "../models/Result";
 
 import AuthenticateHandler from '../handlers/AuthenticateHandler';
-import CodeResponseType from '../CodeResponseType';
+import CodeResponseType from '../responseTypes/CodeResponseType';
 import {
     AccessDeniedError,
     InvalidArgumentError,
@@ -61,15 +60,15 @@ export default class AuthorizeHandler {
             throw new InvalidArgumentError('Missing parameter: `authorizationCodeLifetime`');
         }
 
-        if (!options.model) {
+        if (!options.service) {
             throw new InvalidArgumentError('Missing parameter: `model`');
         }
 
-        if (!options.model.getClient) {
+        if (!options.service.getClientById) {
             throw new InvalidArgumentError('Invalid argument: model does not implement `getClient()`');
         }
 
-        if (!options.model.saveAuthorizationCode) {
+        if (!options.service.saveAuthorizationCode) {
             throw new InvalidArgumentError('Invalid argument: model does not implement `saveAuthorizationCode()`');
         }
 
@@ -83,39 +82,33 @@ export default class AuthorizeHandler {
      * Authorize Handler.
      */
 
-    handle = async (request, response) => {
-        if (!(request instanceof Parameter)) {
-            throw new InvalidArgumentError('Invalid argument: `request` must be an instance of Request');
+    handle = async (params) => {
+        if (!(params instanceof Parameter) || !(params instanceof Object)) {
+            throw new InvalidArgumentError('Invalid argument: `params` must be an instance of Parameter');
         }
 
-        if (!(response instanceof Result)) {
-            throw new InvalidArgumentError('Invalid argument: `response` must be an instance of Response');
-        }
-
-        if ('false' === request.allowed) {
+        if ('false' === params.allowed) {
             throw new AccessDeniedError('Access denied: user denied access to application');
         }
+        const scope = this.getScope(params);
+        const state = this.getState(params);
+        const client = await this.getClient(params);
+        const uri = this.getRedirectUri(params, client);
         try {
+            const user = await this.getUser(params);
             const authorizationCode = await this.generateAuthorizationCode();
             const expiresAt = this.getAuthorizationCodeLifetime();
-            const client = await this.getClient(request);
-            const user = await this.getUser(request, response);
-            const uri = this.getRedirectUri(request, client);
-            const scope = this.getScope(request);
-            const state = this.getState(request);
-            const ResponseType = this.getResponseType(request);
+            const ResponseType = this.getResponseType(params);
             const code = await this.saveAuthorizationCode(authorizationCode, expiresAt, scope, client, uri, user);
             const responseType = new ResponseType(code.authorizationCode);
             const redirectUri = this.buildSuccessRedirectUri(uri, responseType);
-            this.updateResponse(response, redirectUri, state);
-            return code;
+            return this.toResult(redirectUri, state, code);
         } catch(e){
             if (!(e instanceof OAuthError)) {
                 e = new ServerError(e);
             }
             const redirectUri = this.buildErrorRedirectUri(uri, e);
-            this.updateResponse(response, redirectUri, state);
-            throw e;
+            return this.toResult(redirectUri, state);
         }
     };
 
@@ -162,7 +155,7 @@ export default class AuthorizeHandler {
             throw new InvalidRequestError('Invalid request: `redirect_uri` is not a valid URI');
         }
 
-        const client = await this.service.getClient(clientId, null);
+        const client = await this.service.getClientById(clientId);
 
         if (!client) {
             throw new InvalidClientError('Invalid client: client credentials are invalid');
@@ -172,7 +165,7 @@ export default class AuthorizeHandler {
             throw new InvalidClientError('Invalid client: missing client `grants`');
         }
 
-        if (!_.includes(client.grants, 'authorization_code')) {
+        if (!client.grants.includes('authorization_code')) {
             throw new UnauthorizedClientError('Unauthorized client: `grant_type` is invalid');
         }
 
@@ -180,7 +173,7 @@ export default class AuthorizeHandler {
             throw new InvalidClientError('Invalid client: missing client `redirectUri`');
         }
 
-        if (redirectUri && !_.includes(client.redirectUris, redirectUri)) {
+        if (redirectUri && !client.redirectUris.includes(redirectUri)) {
             throw new InvalidClientError('Invalid client: `redirect_uri` does not match client value');
         }
         return client;
@@ -222,18 +215,16 @@ export default class AuthorizeHandler {
      * Get user by calling the authenticate middleware.
      */
 
-    getUser = async (request, response) => {
+    getUser = async (params) => {
         if (this.authenticateHandler instanceof AuthenticateHandler) {
-            const result =  await this.authenticateHandler.handle(request, response);
+            const result = await this.authenticateHandler.handle(params);
             return result.get('user');
         }
-        return promisify(this.authenticateHandler.handle, 2)(request, response).then(function (user) {
-            if (!user) {
-                throw new ServerError('Server error: `handle()` did not return a `user` object');
-            }
-
-            return user;
-        });
+        const user = await this.authenticateHandler.handle(params);
+        if (!user) {
+            throw new ServerError('Server error: `handle()` did not return a `user` object');
+        }
+        return user;
     };
 
     /**
@@ -267,7 +258,7 @@ export default class AuthorizeHandler {
             throw new InvalidRequestError('Missing parameter: `response_type`');
         }
 
-        if (!_.has(responseTypes, responseType)) {
+        if (!(responseType in responseTypes)) {
             throw new UnsupportedResponseTypeError('Unsupported response type: `response_type` is not supported');
         }
 
@@ -302,14 +293,17 @@ export default class AuthorizeHandler {
      * Update response with the redirect uri and the state parameter, if available.
      */
 
-    updateResponse = (response, redirectUri, state) => {
+    toResult = (redirectUri, state, code) => {
         redirectUri.query = redirectUri.query || {};
-
+        if (code) {
+            redirectUri.query.code = code;
+        }
         if (state) {
             redirectUri.query.state = state;
         }
-
-        response.redirect(url.format(redirectUri));
+        const result = new Result();
+        result.redirect(url.format(redirectUri));
+        return result;
     };
 
 }

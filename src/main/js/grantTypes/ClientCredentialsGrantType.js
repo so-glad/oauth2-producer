@@ -5,8 +5,8 @@
  * @since 2017/5/19.
  */
 
-
-import {InvalidArgumentError, InvalidGrantError} from "../models/OAuthErrors";
+import AbstractGrantType from './AbstractGrantType';
+import {InvalidArgumentError, InvalidGrantError} from '../models/OAuthError';
 
 export default class ClientCredentialsGrantType extends AbstractGrantType {
 
@@ -16,15 +16,15 @@ export default class ClientCredentialsGrantType extends AbstractGrantType {
         options = options || {};
 
         if (!options.service) {
-            throw new InvalidArgumentError('Missing parameter: `model`');
+            throw new InvalidArgumentError('Missing parameter: `service`');
         }
 
         if (!options.service.getUserFromClient) {
-            throw new InvalidArgumentError('Invalid argument: model does not implement `getUserFromClient()`');
+            throw new InvalidArgumentError('Invalid argument: service does not implement `getUserFromClient()`');
         }
 
         if (!options.service.saveToken) {
-            throw new InvalidArgumentError('Invalid argument: model does not implement `saveToken()`');
+            throw new InvalidArgumentError('Invalid argument: service does not implement `saveToken()`');
         }
 
     }
@@ -35,16 +35,16 @@ export default class ClientCredentialsGrantType extends AbstractGrantType {
      * @see https://tools.ietf.org/html/rfc6749#section-4.4.2
      */
 
-    handle = async (request, client) => {
-        if (!request) {
-            throw new InvalidArgumentError('Missing parameter: `request`');
+    handle = async (params, client) => {
+        if (!params) {
+            throw new InvalidArgumentError('Missing parameter: `params`');
         }
 
         if (!client) {
             throw new InvalidArgumentError('Missing parameter: `client`');
         }
 
-        const scope = this.getScope(request);
+        const scope = this.getScope(params);
         const user = await this.getUserFromClient(client);
         return await this.saveToken(user, client, scope);
     };

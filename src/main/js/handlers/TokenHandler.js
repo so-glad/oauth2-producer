@@ -6,15 +6,12 @@
  */
 
 
-import _ from "lodash";
-
-import auth from "basic-auth";
 import util from "../utils";
 
 import Parameter from "../models/Parameter";
 import Result from "../models/Result";
 
-import BearerTokenType from "../BearerTokenType";
+import BearerTokenType from "../tokenTypes/BearerTokenType";
 import TokenModel from "../models/TokenModel";
 
 import AuthorizationCodeGrantType from "../grantTypes/AuthorizationCodeGrantType";
@@ -51,11 +48,17 @@ const grantTypes = {
 export default class TokenHandler {
 
     accessTokenLifetime = null;
+
     grantTypes = null;
+
     service = null;
+
     refreshTokenLifetime = null;
+
     allowExtendedTokenAttributes = null;
+
     requireClientAuthentication = null;
+
     alwaysIssueNewRefreshToken = null;
 
     constructor(options) {
@@ -66,7 +69,7 @@ export default class TokenHandler {
         }
 
         if (!options.service) {
-            throw new InvalidArgumentError('Missing parameter: `model`');
+            throw new InvalidArgumentError('Missing parameter: `service`');
         }
 
         if (!options.refreshTokenLifetime) {
@@ -78,7 +81,7 @@ export default class TokenHandler {
         }
 
         this.accessTokenLifetime = options.accessTokenLifetime;
-        this.grantTypes = _.assign({}, grantTypes, options.extendedGrantTypes);
+        this.grantTypes = Object.assign({}, grantTypes, options.extendedGrantTypes);
         this.service = options.service;
         this.refreshTokenLifetime = options.refreshTokenLifetime;
         this.allowExtendedTokenAttributes = options.allowExtendedTokenAttributes;
@@ -90,32 +93,25 @@ export default class TokenHandler {
      * Token Handler.
      */
 
-    handle = async (request, response) => {
-        if (!(request instanceof Parameter)) {
-            throw new InvalidArgumentError('Invalid argument: `request` must be an instance of Request');
+    handle = async (params) => {
+        if (!(params instanceof Parameter) || !(params instanceof Object)) {
+            throw new InvalidArgumentError('Invalid argument: `params` must be an instance of Request');
         }
 
-        if (!(response instanceof Result)) {
-            throw new InvalidArgumentError('Invalid argument: `response` must be an instance of Response');
-        }
-
-        if (request.method !== 'POST') {
-            throw new InvalidRequestError('Invalid request: method must be POST');
-        }
-
-        if (!request.is('application/x-www-form-urlencoded')) {
-            throw new InvalidRequestError('Invalid request: content must be application/x-www-form-urlencoded');
-        }
         try {
-            const client = await this.getClient(request, response);
-            const data = await this.handleGrantType(request, client);
+            const client = await this.getClient(params);
+            const data = await this.handleGrantType(params, client);
             const model = new TokenModel(data, {allowExtendedTokenAttributes: this.allowExtendedTokenAttributes});
             const tokenType = this.getTokenType(model);
-            this.updateSuccessResponse(response, tokenType);
+            return this.toResult(tokenType);
         } catch (e) {
             const error = (e instanceof OAuthError) ? e : new ServerError(e);
-            this.updateErrorResponse(response, error);
-            throw error;
+            const result = this.toError(error);
+            if(error instanceof InvalidClientError && params.get('authorization')) {
+                result.setHeader('WWW-Authenticate', 'Basic realm="Service"');
+                result.status = 401;
+            }
+            return result;
         }
     };
 
@@ -123,9 +119,9 @@ export default class TokenHandler {
      * Get the client from the model.
      */
 
-    getClient = async (request, response) => {
-        const credentials = this.getClientCredentials(request);
-        const grantType = request.body.grant_type;
+    getClient = async (params) => {
+        const credentials = this.getClientCredentials(params);
+        const grantType = params.get('grant_type');
 
         if (!credentials.clientId) {
             throw new InvalidRequestError('Missing parameter: `client_id`');
@@ -144,11 +140,6 @@ export default class TokenHandler {
         }
         const client = await this.service.getClient(credentials.clientId, credentials.clientSecret);
         if (!client) {
-            const properties = {};
-            if (request.get('authorization')) {
-                response.set('WWW-Authenticate', 'Basic realm="Service"');
-                properties.code = 401;
-            }
             throw new InvalidClientError('Invalid client: client is invalid', properties);
         }
 
@@ -172,21 +163,16 @@ export default class TokenHandler {
      * @see https://tools.ietf.org/html/rfc6749#section-2.3.1
      */
 
-    getClientCredentials = (request) => {
-        const credentials = auth(request);
-        const grantType = request.body.grant_type;
+    getClientCredentials = (params) => {
+        const grantType = params.get('grant_type');
 
-        if (credentials) {
-            return {clientId: credentials.name, clientSecret: credentials.pass};
-        }
-
-        if (request.body.client_id && request.body.client_secret) {
-            return {clientId: request.body.client_id, clientSecret: request.body.client_secret};
+        if (params.get('client_id') && params.get('client_secret')) {
+            return {clientId: params.get('client_id'), clientSecret: params.get('client_secret')};
         }
 
         if (!this.isClientAuthenticationRequired(grantType)) {
-            if (request.body.client_id) {
-                return {clientId: request.body.client_id};
+            if (params.get('client_id')) {
+                return {clientId: params.get('client_id')};
             }
         }
 
@@ -197,22 +183,22 @@ export default class TokenHandler {
      * Handle grant type.
      */
 
-    handleGrantType = async (request, client) => {
-        const grantType = request.body.grant_type;
+    handleGrantType = async (params, client) => {
+        const grantType = params.get('grant_type');
 
         if (!grantType) {
             throw new InvalidRequestError('Missing parameter: `grant_type`');
         }
 
-        if (!util.nchar(grantType) && !is.uri(grantType)) {
+        if (!util.nchar(grantType) && !util.uri(grantType)) {
             throw new InvalidRequestError('Invalid parameter: `grant_type`');
         }
 
-        if (!_.has(this.grantTypes, grantType)) {
+        if (!(grantType in this.grantTypes)) {
             throw new UnsupportedGrantTypeError('Unsupported grant type: `grant_type` is invalid');
         }
 
-        if (!_.includes(client.grants, grantType)) {
+        if (!client.grants.includes(grantType)) {
             throw new UnauthorizedClientError('Unauthorized client: `grant_type` is invalid');
         }
 
@@ -227,7 +213,7 @@ export default class TokenHandler {
             alwaysIssueNewRefreshToken: this.alwaysIssueNewRefreshToken
         };
 
-        return await new GrantType(options).handle(request, client);
+        return await new GrantType(options).handle(params, client);
     };
 
     /**
@@ -256,24 +242,25 @@ export default class TokenHandler {
      * Update response when a token is generated.
      */
 
-    updateSuccessResponse = (response, tokenType) => {
-        response.body = tokenType.valueOf();
-
-        response.set('Cache-Control', 'no-store');
-        response.set('Pragma', 'no-cache');
+    toResult = (tokenType) => {
+        const result = new Result();
+        for (const key in tokenType) {
+            result.set(key, tokenType[key]);
+        }
+        result.set('Cache-Control', 'no-store');
+        result.set('Pragma', 'no-cache');
+        return result;
     };
 
     /**
      * Update response when an error is thrown.
      */
 
-    updateErrorResponse = (response, error) => {
-        response.body = {
-            error: error.name,
-            error_description: error.message
-        };
-
-        response.status = error.code;
+    toError = (error) => {
+        const result = new Result();
+        result.set('error', error.name);
+        result.set('message', error.message);
+        result.status = error.code;
     };
 
     /**

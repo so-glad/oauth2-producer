@@ -7,9 +7,9 @@
 
 
 import util from '../utils';
-import AbstractGrantType from "./AbstractGrantType";
+import AbstractGrantType from './AbstractGrantType';
 
-import {InvalidArgumentError, InvalidGrantError, InvalidRequestError, ServerError} from "../models/OAuthError";
+import {InvalidArgumentError, InvalidGrantError, InvalidRequestError, ServerError} from '../models/OAuthError';
 
 export default class RefreshTokenGrantType extends AbstractGrantType {
 
@@ -19,19 +19,19 @@ export default class RefreshTokenGrantType extends AbstractGrantType {
         options = options || {};
 
         if (!options.service) {
-            throw new InvalidArgumentError('Missing parameter: `model`');
+            throw new InvalidArgumentError('Missing parameter: `service`');
         }
 
         if (!options.service.getRefreshToken) {
-            throw new InvalidArgumentError('Invalid argument: model does not implement `getRefreshToken()`');
+            throw new InvalidArgumentError('Invalid argument: service does not implement `getRefreshToken()`');
         }
 
         if (!options.service.revokeToken) {
-            throw new InvalidArgumentError('Invalid argument: model does not implement `revokeToken()`');
+            throw new InvalidArgumentError('Invalid argument: service does not implement `revokeToken()`');
         }
 
         if (!options.service.saveToken) {
-            throw new InvalidArgumentError('Invalid argument: model does not implement `saveToken()`');
+            throw new InvalidArgumentError('Invalid argument: service does not implement `saveToken()`');
         }
 
     }
@@ -42,15 +42,15 @@ export default class RefreshTokenGrantType extends AbstractGrantType {
      * @see https://tools.ietf.org/html/rfc6749#section-6
      */
 
-    handle = async (request, client) => {
-        if (!request) {
-            throw new InvalidArgumentError('Missing parameter: `request`');
+    handle = async (params, client) => {
+        if (!params) {
+            throw new InvalidArgumentError('Missing parameter: `params`');
         }
 
         if (!client) {
             throw new InvalidArgumentError('Missing parameter: `client`');
         }
-        const token = await this.getRefreshToken(request, client);
+        const token = await this.getRefreshToken(params, client);
         await this.revokeToken(token);
         return await this.saveToken(token.user, client, token.scope);
     };

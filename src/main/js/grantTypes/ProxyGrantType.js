@@ -7,47 +7,57 @@
 
 
 import AbstractGrantType from './AbstractGrantType';
-import {InvalidArgumentError, InvalidGrantError, InvalidRequestError} from "../models/OAuthErrors";
+import {InvalidArgumentError, InvalidGrantError, InvalidRequestError} from '../models/OAuthError';
 
-export default class ImplicitGrantType extends AbstractGrantType {
+export default class ProxyGrantType extends AbstractGrantType {
 
     constructor(options) {
         super(options);
-        if (!request) {
-            throw new InvalidArgumentError('Missing parameter: `request`');
+        options = options || {};
+
+        if (!options.service) {
+            throw new InvalidArgumentError('Missing parameter: `service`');
         }
 
-        if (!client) {
-            throw new InvalidArgumentError('Missing parameter: `client`');
+        if (!options.service.getUser) {
+            throw new InvalidArgumentError('Invalid argument: service does not implement `getUser()`');
+        }
+
+        if (!options.service.saveToken) {
+            throw new InvalidArgumentError('Invalid argument: service does not implement `saveToken()`');
+        }
+        if(!options.service.exchangeAccessTokenByCode) {
+            throw new InvalidArgumentError('Invalid argument: service does not implement `exchangeAccessTokenByCode()`');
+        }
+        if(!options.service.getUserByAccessToken) {
+            throw new InvalidArgumentError('Invalid argument: service does not implement `getUserByAccessToken()`');
         }
     }
 
-    handle = async (request, client) => {
-        if (!request) {
-            throw new InvalidArgumentError('Missing parameter: `request`');
+    handle = async (params, client) => {
+        if (!params) {
+            throw new InvalidArgumentError('Missing parameter: `params`');
         }
 
         if (!client) {
             throw new InvalidArgumentError('Missing parameter: `client`');
         }
 
-        const scope = this.getScope(request);
-        const user = await this.getUser(request);
+        const scope = this.getScope(params);
+        const user = await this.getUser(params);
         return await this.saveToken(user, client, scope);
     };
 
-    getUser = async (request) => {
-        const type = request.params.provider;
-        if (request.query.error) {
-            this.logger.error(request.query);
+    getUser = async (params) => {
+        const type = params.get('provider');
+        if (params.get('error')) {
             return;
         }
-        const code = request.query.code;
-        const state = request.query.state;
+        const code = params.get('code');
+        const state = params.get('state');
         try {
             const access = await this.service.exchangeAccessTokenByCode(type, code, state);
             if (access.error) {
-                this.logger.error(access.error);
                 throw access.error;
             } else {
                 const user = await this.service.getUserByAccessToken(type, access.params());
@@ -63,18 +73,18 @@ export default class ImplicitGrantType extends AbstractGrantType {
     };
 
     saveToken = async (user, client, scope) => {
-        const scope = await this.validateScope(user, client, scope);
-        const accessToken = await this.generateAccessToken(client, user, scope);
-        const refreshToken = await this.generateRefreshToken(client, user, scope);
-        const accessTokenExpiresAt = await this.getAccessTokenExpiresAt();
-        const refreshTokenExpiresAt = await this.getRefreshTokenExpiresAt();
+        const validatedScope = await this.validateScope(user, client, scope);
+        const accessToken = await this.generateAccessToken(client, user, validatedScope);
+        const refreshToken = await this.generateRefreshToken(client, user, validatedScope);
+        const accessTokenExpiresAt = this.getAccessTokenExpiresAt();
+        const refreshTokenExpiresAt = this.getRefreshTokenExpiresAt();
 
         const token = {
             accessToken: accessToken,
             accessTokenExpiresAt: accessTokenExpiresAt,
             refreshToken: refreshToken,
             refreshTokenExpiresAt: refreshTokenExpiresAt,
-            scope: scope
+            scope: validatedScope
         };
 
         await this.service.saveToken(token, client, user);

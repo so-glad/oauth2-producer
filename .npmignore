@@ -3,5 +3,10 @@
 .vscode
 .eclipse
 
-lib
+src
 etc
+
+node_modules
+.npmignore
+.eslintrc
+.gitignore

@@ -18,19 +18,19 @@ export default class AuthorizationCodeGrantType extends AbstractGrantType {
         options = options || {};
 
         if (!options.service) {
-            throw new InvalidArgumentError('Missing parameter: `model`');
+            throw new InvalidArgumentError('Missing parameter: `service`');
         }
 
         if (!options.service.getAuthorizationCode) {
-            throw new InvalidArgumentError('Invalid argument: model does not implement `getAuthorizationCode()`');
+            throw new InvalidArgumentError('Invalid argument: service does not implement `getAuthorizationCode()`');
         }
 
         if (!options.service.revokeAuthorizationCode) {
-            throw new InvalidArgumentError('Invalid argument: model does not implement `revokeAuthorizationCode()`');
+            throw new InvalidArgumentError('Invalid argument: service does not implement `revokeAuthorizationCode()`');
         }
 
         if (!options.service.saveToken) {
-            throw new InvalidArgumentError('Invalid argument: model does not implement `saveToken()`');
+            throw new InvalidArgumentError('Invalid argument: service does not implement `saveToken()`');
         }
     }
 
@@ -40,16 +40,16 @@ export default class AuthorizationCodeGrantType extends AbstractGrantType {
      * @see https://tools.ietf.org/html/rfc6749#section-4.1.3
      */
 
-    handle = async (request, client) => {
-        if (!request) {
-            throw new InvalidArgumentError('Missing parameter: `request`');
+    handle = async (params, client) => {
+        if (!params) {
+            throw new InvalidArgumentError('Missing parameter: `params`');
         }
 
         if (!client) {
             throw new InvalidArgumentError('Missing parameter: `client`');
         }
-        const code = await this.getAuthorizationCode(request, client);
-        this.validateRedirectUri(request, code);
+        const code = await this.getAuthorizationCode(params, client);
+        this.validateRedirectUri(params, code);
         await this.revokeAuthorizationCode(code);
         return this.saveToken(code.user, client, code.authorizationCode, code.scope);
     };
@@ -59,43 +59,44 @@ export default class AuthorizationCodeGrantType extends AbstractGrantType {
      */
 
     getAuthorizationCode = async (request, client) => {
-        if (!request.body.code) {
+        const code = request.get('code');
+        if (!code) {
             throw new InvalidRequestError('Missing parameter: `code`');
         }
 
-        if (!util.vschar(request.body.code)) {
+        if (!util.vschar(code)) {
             throw new InvalidRequestError('Invalid parameter: `code`');
         }
-        const code = await this.service.getAuthorizationCode(request.body.code);
-        if (!code) {
+        const authorizationCode = await this.service.getAuthorizationCode(code);
+        if (!authorizationCode) {
             throw new InvalidGrantError('Invalid grant: authorization code is invalid');
         }
 
-        if (!code.client) {
+        if (!authorizationCode.client) {
             throw new ServerError('Server error: `getAuthorizationCode()` did not return a `client` object');
         }
 
-        if (!code.user) {
+        if (!authorizationCode.user) {
             throw new ServerError('Server error: `getAuthorizationCode()` did not return a `user` object');
         }
 
-        if (code.client.id !== client.id) {
+        if (authorizationCode.client.id !== client.id) {
             throw new InvalidGrantError('Invalid grant: authorization code is invalid');
         }
 
-        if (!(code.expiresAt instanceof Date)) {
+        if (!(authorizationCode.expiresAt instanceof Date)) {
             throw new ServerError('Server error: `expiresAt` must be a Date instance');
         }
 
-        if (code.expiresAt < new Date()) {
+        if (authorizationCode.expiresAt < new Date()) {
             throw new InvalidGrantError('Invalid grant: authorization code has expired');
         }
 
-        if (code.redirectUri && !is.uri(code.redirectUri)) {
+        if (authorizationCode.redirectUri && !util.uri(authorizationCode.redirectUri)) {
             throw new InvalidGrantError('Invalid grant: `redirect_uri` is not a valid URI');
         }
 
-        return code;
+        return authorizationCode;
     };
 
     /**
@@ -109,12 +110,12 @@ export default class AuthorizationCodeGrantType extends AbstractGrantType {
      * @see https://tools.ietf.org/html/rfc6749#section-4.1.3
      */
 
-    validateRedirectUri = (request, code) => {
+    validateRedirectUri = (params, code) => {
         if (!code.redirectUri) {
             return;
         }
 
-        const redirectUri = request.body.redirect_uri || request.query.redirect_uri;
+        const redirectUri = params.get('redirect_uri');
 
         if (!util.uri(redirectUri)) {
             throw new InvalidRequestError('Invalid request: `redirect_uri` is not a valid URI');
@@ -149,7 +150,7 @@ export default class AuthorizationCodeGrantType extends AbstractGrantType {
 
     saveToken = async (user, client, authorizationCode, scope) => {
 
-        const scopes = await this.validateScope(user, client, scope);
+        const validatedScope = await this.validateScope(user, client, scope);
         const accessToken = await this.generateAccessToken(client, user, scope);
         const refreshToken = await this.generateRefreshToken(client, user, scope);
         const accessTokenExpiresAt = this.getAccessTokenExpiresAt();
@@ -160,7 +161,7 @@ export default class AuthorizationCodeGrantType extends AbstractGrantType {
             accessTokenExpiresAt: accessTokenExpiresAt,
             refreshToken: refreshToken,
             refreshTokenExpiresAt: refreshTokenExpiresAt,
-            scope: scopes
+            scope: validatedScope
         };
 
         return await this.service.saveToken(token, client, user);
