@@ -6,8 +6,8 @@
  */
 
 
-import Parameter from "../models/Parameter";
-import Result from "../models/Result";
+import Parameter from '../models/Parameter';
+import Result from '../models/Result';
 
 import {
     InsufficientScopeError,
@@ -16,7 +16,7 @@ import {
     OAuthError,
     ServerError,
     UnauthorizedRequestError
-} from "../models/OAuthError";
+} from '../models/OAuthError';
 
 /**
  * Constructor.
@@ -84,7 +84,7 @@ export default class AuthenticateHandler {
             // @see https://tools.ietf.org/html/rfc6750#section-3.1
             const result = new Result();
             if (e instanceof UnauthorizedRequestError) {
-                result.setHeader('WWW-Authenticate', 'Bearer realm="Service"');
+                result.header('WWW-Authenticate', 'Bearer realm="Service"');
                 return result;
             }
 
@@ -132,11 +132,11 @@ export default class AuthenticateHandler {
     toResult = (accessToken) => {
         const result = new Result();
         if (this.scope && this.addAcceptedScopesHeader) {
-            result.setHeader('X-Accepted-OAuth-Scopes', this.scope);
+            result.header('X-Accepted-OAuth-Scopes', this.scope);
         }
 
         if (this.scope && this.addAuthorizedScopesHeader) {
-            result.setHeader('X-OAuth-Scopes', accessToken.scope);
+            result.header('X-OAuth-Scopes', accessToken.scope);
         }
         for (const key in accessToken) {
             result.set(key, accessToken[key]);

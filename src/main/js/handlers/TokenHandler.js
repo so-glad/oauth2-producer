@@ -6,19 +6,18 @@
  */
 
 
-import util from "../utils";
+import util from '../utils';
 
-import Parameter from "../models/Parameter";
-import Result from "../models/Result";
+import Parameter from '../models/Parameter';
+import Result from '../models/Result';
 
-import BearerTokenType from "../tokenTypes/BearerTokenType";
-import TokenModel from "../models/TokenModel";
+import AccessToken from '../models/AccessToken';
 
-import AuthorizationCodeGrantType from "../grantTypes/AuthorizationCodeGrantType";
-import PasswordGrantType from "../grantTypes/PasswordGrantType";
-import ClientCredentialsGrantType from "../grantTypes/ClientCredentialsGrantType";
-import ProxyGrantType from "../grantTypes/ProxyGrantType";
-import RefreshTokenGrantType from "../grantTypes/RefreshTokenGrantType";
+import AuthorizationCodeGrantType from '../grantTypes/AuthorizationCodeGrantType';
+import PasswordGrantType from '../grantTypes/PasswordGrantType';
+import ClientCredentialsGrantType from '../grantTypes/ClientCredentialsGrantType';
+import ProxyGrantType from '../grantTypes/ProxyGrantType';
+import RefreshTokenGrantType from '../grantTypes/RefreshTokenGrantType';
 
 import {
     InvalidArgumentError,
@@ -28,7 +27,7 @@ import {
     ServerError,
     UnauthorizedClientError,
     UnsupportedGrantTypeError
-} from "../models/OAuthError";
+} from '../models/OAuthError';
 
 /**
  * Grant types.
@@ -95,20 +94,20 @@ export default class TokenHandler {
 
     handle = async (params) => {
         if (!(params instanceof Parameter) || !(params instanceof Object)) {
-            throw new InvalidArgumentError('Invalid argument: `params` must be an instance of Request');
+            throw new InvalidArgumentError('Invalid argument: `params` must be an instance of Parameter');
         }
 
         try {
             const client = await this.getClient(params);
             const data = await this.handleGrantType(params, client);
-            const model = new TokenModel(data, {allowExtendedTokenAttributes: this.allowExtendedTokenAttributes});
-            const tokenType = this.getTokenType(model);
-            return this.toResult(tokenType);
+            const model = new AccessToken(data, {allowExtendedTokenAttributes: this.allowExtendedTokenAttributes});
+            const bearerToken = model.asBearerType();
+            return this.toResult(bearerToken);
         } catch (e) {
             const error = (e instanceof OAuthError) ? e : new ServerError(e);
             const result = this.toError(error);
             if(error instanceof InvalidClientError && params.get('authorization')) {
-                result.setHeader('WWW-Authenticate', 'Basic realm="Service"');
+                result.header('WWW-Authenticate', 'Basic realm="Service"');
                 result.status = 401;
             }
             return result;
@@ -140,7 +139,7 @@ export default class TokenHandler {
         }
         const client = await this.service.getClient(credentials.clientId, credentials.clientSecret);
         if (!client) {
-            throw new InvalidClientError('Invalid client: client is invalid', properties);
+            throw new InvalidClientError('Invalid client: client is invalid');
         }
 
         if (!client.grants) {
@@ -208,35 +207,25 @@ export default class TokenHandler {
 
         const options = {
             accessTokenLifetime: accessTokenLifetime,
-            model: this.service,
+            service: this.service,
             refreshTokenLifetime: refreshTokenLifetime,
             alwaysIssueNewRefreshToken: this.alwaysIssueNewRefreshToken
         };
-
-        return await new GrantType(options).handle(params, client);
+        const grantHandler = new GrantType(options);
+        return await grantHandler.handle(params, client);
     };
 
     /**
      * Get access token lifetime.
      */
 
-    getAccessTokenLifetime = (client) => {
-        return client.accessTokenLifetime || this.accessTokenLifetime;
-    };
+    getAccessTokenLifetime = (client) => client.accessTokenLifetime || this.accessTokenLifetime;
 
     /**
      * Get refresh token lifetime.
      */
 
-    getRefreshTokenLifetime = (client) => {
-        return client.refreshTokenLifetime || this.refreshTokenLifetime;
-    };
-
-    /**
-     * Get token type.
-     */
-
-    getTokenType = (model) => new BearerTokenType(model.accessToken, model.accessTokenLifetime, model.refreshToken, model.scope, model.customAttributes);
+    getRefreshTokenLifetime = (client) => client.refreshTokenLifetime || this.refreshTokenLifetime;
 
     /**
      * Update response when a token is generated.
@@ -247,8 +236,8 @@ export default class TokenHandler {
         for (const key in tokenType) {
             result.set(key, tokenType[key]);
         }
-        result.set('Cache-Control', 'no-store');
-        result.set('Pragma', 'no-cache');
+        result.header('Cache-Control', 'no-store');
+        result.header('Pragma', 'no-cache');
         return result;
     };
 
@@ -261,6 +250,7 @@ export default class TokenHandler {
         result.set('error', error.name);
         result.set('message', error.message);
         result.status = error.code;
+        return result;
     };
 
     /**

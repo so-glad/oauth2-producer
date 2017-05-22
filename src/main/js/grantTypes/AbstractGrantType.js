@@ -7,7 +7,7 @@
 
 
 import util from '../utils';
-import {InvalidArgumentError, InvalidScopeError} from "../models/OAuthError";
+import {InvalidArgumentError, InvalidScopeError} from '../models/OAuthError';
 
 export default class AbstractGrantType {
 
@@ -43,10 +43,10 @@ export default class AbstractGrantType {
     generateAccessToken = async (client, user, scope) => {
         if (this.service.generateAccessToken) {
             const accessToken = await this.service.generateAccessToken(client, user, scope);
-            return accessToken || util.generateRandomToken();
+            return accessToken || util.generateRandomToken(256);
         }
 
-        return util.generateRandomToken();
+        return await util.generateRandomToken(256);
     };
 
     /**
@@ -56,10 +56,10 @@ export default class AbstractGrantType {
     generateRefreshToken = async (client, user, scope) => {
         if (this.service.generateRefreshToken) {
             const refreshToken = this.service.generateRefreshToken(client, user, scope);
-            return refreshToken || util.generateRandomToken();
+            return refreshToken || util.generateRandomToken(256);
         }
 
-        return util.generateRandomToken();
+        return await util.generateRandomToken(256);
     };
 
     /**

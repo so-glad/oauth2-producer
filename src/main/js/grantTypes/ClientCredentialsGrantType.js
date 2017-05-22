@@ -46,7 +46,14 @@ export default class ClientCredentialsGrantType extends AbstractGrantType {
 
         const scope = this.getScope(params);
         const user = await this.getUserFromClient(client);
-        return await this.saveToken(user, client, scope);
+        const token = await this.saveToken(user, client, scope);
+        if(!token.user) {
+            token.user = user;
+        }
+        if(!token.client) {
+            token.client = client;
+        }
+        return token;
     };
 
     /**

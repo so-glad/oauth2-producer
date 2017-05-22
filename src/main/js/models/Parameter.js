@@ -20,7 +20,7 @@ export default class Parameter {
         options = options || {};
 
         this._params = Object.assign({}, options.headers, options.header,
-            options.query, options.params, options. options.body);
+            options.query, options.params, options.body);
 
         // Store additional properties of the request object passed in
         for (const property in options) {
@@ -30,7 +30,6 @@ export default class Parameter {
         }
     }
 
-    get = (field) => {
-        return this._params[field.toLowerCase()];
-    };
+    get = (key) => this._params[key.toLowerCase()];
+
 }

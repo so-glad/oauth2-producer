@@ -5,7 +5,7 @@
  * @since 2017/5/19.
  */
 
-import crypto from "crypto";
+import crypto from 'crypto';
 
 const rules = {
     NCHAR: /^[\u002D|\u002E|\u005F|\w]+$/,
@@ -89,10 +89,10 @@ module.exports = {
 
     vschar: (value) => rules.VSCHAR.test(value),
 
-    generateRandomToken: async () => {
-        const buffer = await this.promisefy(crypto, crypto.randomBytes)(256);
+    generateRandomToken: async function(byteNum) {
+        const buffer = await this.promisefy(crypto, crypto.randomBytes)(byteNum);
         return crypto.createHash('sha256')
-            .update(buffer)
+            .update(buffer[0])
             .digest('hex');
     }
 };

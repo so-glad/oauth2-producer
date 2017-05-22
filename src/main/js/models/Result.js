@@ -9,48 +9,33 @@ export default class Result {
 
     _status = 200;
 
-    _headers = null;
+    _headers = {};
 
-    _body = null;
+    _body = {};
+
+    set status(status) {
+        this._status = status;
+    }
+
+    get status() {
+        return this._status;
+    }
+
+    get headers() {
+        return this._headers;
+    }
 
     get body() {
         return this._body;
     }
 
-    set status(status) {
-        this._status = 200;
-    }
+    set = (key, value) => this._body[key] = value;
 
-    constructor(options) {
-        options = options || {};
-
-        this._headers = options.headers || options.header || {};
-        this._body = options._body || {};
-
-        // Store the headers in lower case.
-        for (const field in options.headers) {
-            if (options.headers.hasOwnProperty(field)) {
-                this._headers[field.toLowerCase()] = options.headers[field];
-            }
-        }
-
-        // Store additional properties of the response object passed in
-        for (const property in options) {
-            if (options.hasOwnProperty(property) && !this[property]) {
-                this[property] = options[property];
-            }
-        }
-    }
+    header = (key, value) => value ?
+        (this._headers[key.toLowerCase()] = value) : this._headers[key.toLowerCase()];
 
     redirect = (url) => {
-        this._headers.Location = url;
+        this._headers.location = url;
         this._status = 302;
     };
-
-    getHeader = (field) => this._headers[field.toLowerCase()];
-
-    setHeader = (field, value) => this._headers[field.toLowerCase()] = value;
-
-    set = (field, value) => this._body[field.toLowerCase()] = value;
-
 }

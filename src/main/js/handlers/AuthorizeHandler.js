@@ -10,8 +10,8 @@ import url from 'url';
 
 import util from '../utils';
 
-import Parameter from "../models/Parameter";
-import Result from "../models/Result";
+import Parameter from '../models/Parameter';
+import Result from '../models/Result';
 
 import AuthenticateHandler from '../handlers/AuthenticateHandler';
 import CodeResponseType from '../responseTypes/CodeResponseType';
@@ -104,10 +104,11 @@ export default class AuthorizeHandler {
             const redirectUri = this.buildSuccessRedirectUri(uri, responseType);
             return this.toResult(redirectUri, state, code);
         } catch(e){
+            let error = e;
             if (!(e instanceof OAuthError)) {
-                e = new ServerError(e);
+                error = new ServerError(e);
             }
-            const redirectUri = this.buildErrorRedirectUri(uri, e);
+            const redirectUri = this.buildErrorRedirectUri(uri, error);
             return this.toResult(redirectUri, state);
         }
     };

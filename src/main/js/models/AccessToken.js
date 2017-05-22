@@ -4,11 +4,9 @@
  * Module dependencies.
  */
 
-import {InvalidArgumentError} from './OAuthErrors';
+import BearerTokenType from '../tokenTypes/BearerTokenType';
+import {InvalidArgumentError} from './OAuthError';
 
-/**
- * Constructor.
- */
 
 const modelAttributes = [
     'accessToken',
@@ -20,11 +18,36 @@ const modelAttributes = [
     'user'
 ];
 
-export class TokenModel {
+const tokenType = {
+    Bearer: BearerTokenType
+};
+
+export default class TokenModel {
+
+    accessToken = null;
+
+    accessTokenExpiresAt = null;
+
+    accessTokenLifetime = null;
+
+    refreshToken = null;
+
+    refreshTokenExpiresAt = null;
+
+    refreshTokenLifetime = null;
+
+    scope = null;
+
+    client = null;
+
+    user = null;
+
+    customAttributes = {};
+
     constructor(data, options) {
         data = data || {};
 
-        if (!data.accessToken) {
+        if (!data || !data.accessToken) {
             throw new InvalidArgumentError('Missing parameter: `accessToken`');
         }
 
@@ -46,10 +69,10 @@ export class TokenModel {
 
         this.accessToken = data.accessToken;
         this.accessTokenExpiresAt = data.accessTokenExpiresAt;
-        this.client = data.client;
         this.refreshToken = data.refreshToken;
         this.refreshTokenExpiresAt = data.refreshTokenExpiresAt;
         this.scope = data.scope;
+        this.client = data.client;
         this.user = data.user;
 
         if (options && options.allowExtendedTokenAttributes) {
@@ -65,6 +88,13 @@ export class TokenModel {
         if (this.accessTokenExpiresAt) {
             this.accessTokenLifetime = Math.floor((this.accessTokenExpiresAt - new Date()) / 1000);
         }
+        if (this.refreshTokenExpiresAt) {
+            this.refreshTokenLifetime = Math.floor((this.refreshTokenExpiresAt - new Date()) / 1000);
+        }
     }
 
+    asType = (type) =>
+        new (tokenType[type])(this);
+
+    asBearerType = () => this.asType('Bearer');
 }

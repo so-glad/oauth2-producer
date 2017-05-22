@@ -52,7 +52,14 @@ export default class RefreshTokenGrantType extends AbstractGrantType {
         }
         const token = await this.getRefreshToken(params, client);
         await this.revokeToken(token);
-        return await this.saveToken(token.user, client, token.scope);
+        const savedToken = await this.saveToken(token.user, client, token.scope);
+        if(!savedToken.user) {
+            savedToken.user = token.user;
+        }
+        if(!savedToken.client) {
+            savedToken.client = client;
+        }
+        return savedToken;
     };
 
     /**

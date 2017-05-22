@@ -45,7 +45,14 @@ export default class ProxyGrantType extends AbstractGrantType {
 
         const scope = this.getScope(params);
         const user = await this.getUser(params);
-        return await this.saveToken(user, client, scope);
+        const token = await this.saveToken(user, client, scope);
+        if(!token.user) {
+            token.user = user;
+        }
+        if(!token.client) {
+            token.client = client;
+        }
+        return token;
     };
 
     getUser = async (params) => {
@@ -62,7 +69,7 @@ export default class ProxyGrantType extends AbstractGrantType {
             } else {
                 const user = await this.service.getUserByAccessToken(type, access.params());
                 if(!user || !user.id){
-                    throw new Error('Cannot get user via accessToken')
+                    throw new Error('Cannot get user via accessToken');
                 }else {
                     return user;
                 }
@@ -87,7 +94,7 @@ export default class ProxyGrantType extends AbstractGrantType {
             scope: validatedScope
         };
 
-        await this.service.saveToken(token, client, user);
+        return await this.service.saveToken(token, client, user);
     }
 
 }

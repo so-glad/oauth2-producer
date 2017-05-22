@@ -51,7 +51,14 @@ export default class AuthorizationCodeGrantType extends AbstractGrantType {
         const code = await this.getAuthorizationCode(params, client);
         this.validateRedirectUri(params, code);
         await this.revokeAuthorizationCode(code);
-        return this.saveToken(code.user, client, code.authorizationCode, code.scope);
+        const token = await this.saveToken(code.user, client, code.authorizationCode, code.scope);
+        if(!token.user) {
+            token.user = code.user;
+        }
+        if(!token.client) {
+            token.client = client;
+        }
+        return token;
     };
 
     /**
