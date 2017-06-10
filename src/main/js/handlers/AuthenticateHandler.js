@@ -76,7 +76,7 @@ export default class AuthenticateHandler {
             const token = await this.getToken(accessToken);
             this.validateToken(token);
             await this.verifyScope(token);
-            return this.toResult(accessToken);
+            return this.toResult(token);
         } catch (e) {
             // Include the "WWW-Authenticate" response header field if the client
             // lacks any authentication information.
@@ -122,24 +122,23 @@ export default class AuthenticateHandler {
     };
 
     verifyScope = async (token) => {
-        const scope = await this.service.verifyScope(token, this.scope);
-        if (!scope) {
+        const verified = await this.service.verifyScope(token, this.scope);
+        if (!verified) {
             throw new InsufficientScopeError('Insufficient scope: authorized scope is insufficient');
         }
-        return scope;
     };
 
-    toResult = (accessToken) => {
+    toResult = (token) => {
         const result = new Result();
         if (this.scope && this.addAcceptedScopesHeader) {
             result.header('X-Accepted-OAuth-Scopes', this.scope);
         }
 
         if (this.scope && this.addAuthorizedScopesHeader) {
-            result.header('X-OAuth-Scopes', accessToken.scope);
+            result.header('X-OAuth-Scopes', token.scope);
         }
-        for (const key in accessToken) {
-            result.set(key, accessToken[key]);
+        for (const key in token) {
+            result.set(key, token[key]);
         }
         return result;
     };
