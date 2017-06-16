@@ -93,10 +93,6 @@ export default class TokenHandler {
      */
 
     handle = async (params) => {
-        if (!(params instanceof Parameter) || !(params instanceof Object)) {
-            throw new InvalidArgumentError('Invalid argument: `params` must be an instance of Parameter');
-        }
-
         try {
             const client = await this.getClient(params);
             const data = await this.handleGrantType(params, client);

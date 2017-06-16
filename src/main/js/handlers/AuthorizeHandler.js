@@ -83,10 +83,6 @@ export default class AuthorizeHandler {
      */
 
     handle = async (params) => {
-        if (!(params instanceof Parameter) || !(params instanceof Object)) {
-            throw new InvalidArgumentError('Invalid argument: `params` must be an instance of Parameter');
-        }
-
         if ('false' === params.allowed) {
             throw new AccessDeniedError('Access denied: user denied access to application');
         }

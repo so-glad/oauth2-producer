@@ -63,10 +63,6 @@ export default class AuthenticateHandler {
     }
 
     handle = async (params) => {
-        if (!(params instanceof Parameter) || !(params instanceof Object)) {
-            throw new InvalidArgumentError('Invalid argument: `params` must be an instance of Parameter');
-        }
-
         try {
             let accessToken = params.get('Authorization') || params.get('access_token');
             const matches = accessToken.match(/Bearer\s(\S+)/);

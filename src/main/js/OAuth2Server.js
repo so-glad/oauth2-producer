@@ -11,6 +11,7 @@ import AuthenticateHandler from './handlers/AuthenticateHandler';
 import TokenHandler from './handlers/TokenHandler';
 
 import {InvalidArgumentError} from './models/OAuthError';
+import Parameter from './models/Parameter';
 
 export default class OAuth2Server {
 
@@ -36,7 +37,7 @@ export default class OAuth2Server {
             addAuthorizedScopesHeader: true
         }, this.options, options);
         const handler = new AuthenticateHandler(options);
-        return await handler.handle(params);
+        return await handler.handle(params instanceof Parameter ? params : new Parameter(params));
     };
 
     token = async (params, options) => {
@@ -48,7 +49,7 @@ export default class OAuth2Server {
         }, this.options, options);
 
         const handler = new TokenHandler(options);
-        return await handler.handle(params);
+        return await handler.handle(params instanceof Parameter ? params : new Parameter(params));
     };
 
     authorize = async (params, options) => {
@@ -58,6 +59,6 @@ export default class OAuth2Server {
         }, this.options, options);
 
         const handler = new AuthorizeHandler(options);
-        return await handler.handle(params);
+        return await handler.handle(params instanceof Parameter ? params : new Parameter(params));
     };
 }
