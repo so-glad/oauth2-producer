@@ -12,6 +12,7 @@ import TokenHandler from './handlers/TokenHandler';
 
 import {InvalidArgumentError} from './models/OAuthError';
 import Parameter from './models/Parameter';
+import Result from './models/Result';
 
 export default class OAuth2Server {
 
@@ -50,6 +51,27 @@ export default class OAuth2Server {
 
         const handler = new TokenHandler(options);
         return await handler.handle(params instanceof Parameter ? params : new Parameter(params));
+    };
+
+    revoke = async (params, options) => {
+        const opts = Object.assign({}, this.options, options);
+        if (!opts.service.revokeToken) {
+            throw new InvalidArgumentError('Invalid argument: service does not implement `revokeToken()`');
+        }
+        const token = params.accessToken ? params : params.params;
+        const result = new Result();
+        result.header('Cache-Control', 'no-store');
+        result.header('Pragma', 'no-cache');
+        try {
+            const status = await opts.service.revokeToken(token);
+            for(const i in status) {
+                result.set(i, status[i]);
+            }
+            return result;
+        } catch(e) {
+            result.status = e.code;
+            return result;
+        }
     };
 
     authorize = async (params, options) => {
